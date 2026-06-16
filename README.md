@@ -798,7 +798,7 @@ Khi tuning hệ thống rotary pendulum, cần chú ý:
 # 15. Self-Balancing Robot
 
 <p align="center">
-  <img src="image/xecangbang.gif" width="620" alt="Self-Balancing Robot Simulation">
+  <img src="./image/xecanbang.gif" width="620" alt="Self-Balancing Robot Simulation">
 </p>
 
 <p align="center">
