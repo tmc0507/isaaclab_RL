@@ -30,7 +30,8 @@
 - [12. Quy trình phát triển đề xuất](#12-quy-trình-phát-triển-đề-xuất)
 - [13. Lỗi thường gặp](#13-lỗi-thường-gặp)
 - [14. Rotary Inverted Pendulum](#14-rotary-inverted-pendulum)
-- [15. Phần phát triển sau](#15-phần-phát-triển-sau)
+- [15. Self-Balancing Robot](#15-self-balancing-robot)
+- [16. Phần phát triển sau](#16-phần-phát-triển-sau)
 
 ---
 
@@ -794,5 +795,389 @@ Khi tuning hệ thống rotary pendulum, cần chú ý:
 
 ---
 
-  <b>Developed for Robotics AI Research</b>
+# 15. Self-Balancing Robot
+
+<p align="center">
+  <img src="image/xecangbang.gif" width="620" alt="Self-Balancing Robot Simulation">
 </p>
+
+<p align="center">
+  <b>Self-Balancing Robot trained and tested in Isaac Sim / Isaac Lab</b>
+</p>
+
+---
+
+## 15.1. Giới thiệu hệ thống
+
+**Self-Balancing Robot** là hệ thống robot hai bánh có khả năng tự giữ cân bằng quanh trục pitch.
+
+Về bản chất, hệ thống này có đặc điểm gần giống bài toán **inverted pendulum trên xe di động**.  
+Thân robot có xu hướng bị ngã nếu không có bộ điều khiển tác động liên tục lên hai bánh xe.
+
+Mục tiêu của hệ thống là điều khiển bánh trái và bánh phải để:
+
+- Giữ thân robot cân bằng quanh vị trí thẳng đứng.
+- Giảm sai số góc nghiêng pitch.
+- Ổn định vận tốc và chuyển động tịnh tiến.
+- Điều khiển hướng quay yaw khi cần thiết.
+- Tạo hành vi điều khiển mượt trong môi trường mô phỏng.
+
+Trong project này, xe cân bằng được mô phỏng bằng Isaac Sim và được huấn luyện bằng Isaac Lab thông qua thuật toán Reinforcement Learning.
+
+---
+
+## 15.2. Mục tiêu huấn luyện
+
+Mục tiêu chính của quá trình train là tạo ra policy có khả năng giữ robot không bị ngã trong quá trình mô phỏng.
+
+Policy cần học được các hành vi chính:
+
+| Mục tiêu | Mô tả |
+|---|---|
+| Balance control | Giữ thân robot gần vị trí thẳng đứng |
+| Pitch stabilization | Giảm góc nghiêng và vận tốc nghiêng |
+| Velocity control | Duy trì chuyển động ổn định |
+| Yaw control | Hỗ trợ điều khiển hướng quay của robot |
+| Smooth action | Giảm rung và tránh lệnh motor quá gắt |
+
+Nếu train tốt, robot có thể tự điều chỉnh bánh xe để kéo thân robot trở lại trạng thái cân bằng khi bị lệch khỏi vị trí thẳng đứng.
+
+---
+
+## 15.3. Lý do sử dụng Reinforcement Learning
+
+Xe cân bằng là một hệ thống khó điều khiển vì:
+
+- Hệ thống không ổn định tự nhiên.
+- Động lực học phi tuyến.
+- Chuyển động bánh xe và góc nghiêng thân robot có liên hệ chặt chẽ.
+- Điều khiển tiến/lùi và giữ cân bằng xảy ra đồng thời.
+- Ma sát, khối lượng, moment quán tính và tiếp xúc bánh xe ảnh hưởng mạnh đến kết quả.
+
+Với Reinforcement Learning, agent có thể học policy điều khiển thông qua tương tác trực tiếp với môi trường mô phỏng thay vì chỉ dựa vào mô hình toán học tuyến tính.
+
+Thuật toán định hướng sử dụng:
+
+```bash
+PPO - Proximal Policy Optimization
+```
+
+PPO phù hợp vì có độ ổn định tốt trong quá trình training và được sử dụng phổ biến trong các bài toán robot learning.
+
+---
+
+## 15.4. Tổng quan pipeline huấn luyện
+
+Pipeline tổng quát của xe cân bằng:
+
+```bash
+Isaac Sim Physics
+        ↓
+Self-Balancing Robot Asset
+        ↓
+Isaac Lab Environment
+        ↓
+Observation / Action / Reward
+        ↓
+PPO Training
+        ↓
+Trained Policy
+        ↓
+Simulation Test
+```
+
+Ý nghĩa từng thành phần:
+
+| Thành phần | Vai trò |
+|---|---|
+| Isaac Sim | Mô phỏng vật lý, bánh xe, tiếp xúc và chuyển động robot |
+| Asset | Chứa model, articulation, joint và actuator của xe |
+| Isaac Lab Environment | Định nghĩa môi trường học tăng cường |
+| Observation | Trạng thái đầu vào cho agent |
+| Action | Lệnh điều khiển bánh trái và bánh phải |
+| Reward | Đánh giá mức độ cân bằng và ổn định |
+| PPO Policy | Chính sách điều khiển học được sau training |
+
+---
+
+## 15.5. Cấu trúc asset xe cân bằng
+
+Folder asset của xe cân bằng:
+
+```bash
+balancerac_v1
+```
+
+Sau khi được copy vào Isaac Lab, vị trí của asset là:
+
+```bash
+IsaacLab/source/isaaclab_assets/isaaclab_assets/balancerac_v1
+```
+
+Cấu trúc tổng quát có thể gồm:
+
+```bash
+balancerac_v1
+├── __init__.py
+├── balancerac.py
+├── usd
+│   └── balancerac.usd
+└── meshes
+    └── ...
+```
+
+> Tên file thực tế có thể thay đổi tùy theo cách tổ chức project.
+
+---
+
+## 15.6. Thành phần chính của xe cân bằng
+
+Một hệ thống xe cân bằng cơ bản gồm:
+
+| Thành phần | Chức năng |
+|---|---|
+| Body / Chassis | Thân chính của robot |
+| Left wheel | Bánh xe trái |
+| Right wheel | Bánh xe phải |
+| Left wheel joint | Khớp quay bánh trái |
+| Right wheel joint | Khớp quay bánh phải |
+| Actuator | Nhận action từ policy và tạo lệnh điều khiển motor |
+| Contact model | Mô phỏng tiếp xúc giữa bánh xe và mặt sàn |
+
+Hai bánh xe thường được điều khiển độc lập để vừa giữ cân bằng, vừa tạo chuyển động tiến/lùi hoặc quay hướng.
+
+---
+
+## 15.7. Observation Space
+
+Observation là các trạng thái mà agent nhận được từ môi trường.
+
+Một observation cơ bản cho xe cân bằng có thể gồm:
+
+| Biến trạng thái | Ý nghĩa |
+|---|---|
+| `pitch_angle` | Góc nghiêng thân robot |
+| `pitch_velocity` | Vận tốc góc nghiêng |
+| `yaw_rate` | Vận tốc quay quanh trục yaw |
+| `linear_velocity` | Vận tốc tịnh tiến của robot |
+| `left_wheel_velocity` | Vận tốc bánh trái |
+| `right_wheel_velocity` | Vận tốc bánh phải |
+| `previous_action` | Action ở bước trước |
+
+Có thể mở rộng observation bằng cách thêm dạng sin/cos của góc để tránh gián đoạn góc:
+
+```bash
+obs = [
+    sin(pitch_angle),
+    cos(pitch_angle),
+    pitch_velocity,
+    linear_velocity,
+    yaw_rate,
+    left_wheel_velocity,
+    right_wheel_velocity,
+    previous_action
+]
+```
+
+---
+
+## 15.8. Action Space
+
+Action là tín hiệu điều khiển do policy xuất ra cho hai bánh xe.
+
+Dạng action tổng quát:
+
+```bash
+action = [
+    left_motor_command,
+    right_motor_command
+]
+```
+
+Tùy cấu hình actuator, action có thể được hiểu là:
+
+- Torque command.
+- Velocity command.
+- Normalized motor command.
+
+Đối với bài toán xe cân bằng, torque command thường phù hợp vì policy có thể học trực tiếp lực điều khiển cần thiết để giữ robot ổn định.
+
+---
+
+## 15.9. Reward Function
+
+Reward function quyết định hành vi mà robot sẽ học.
+
+Một reward cơ bản cho xe cân bằng có thể gồm:
+
+| Thành phần reward | Mục đích |
+|---|---|
+| Upright reward | Khuyến khích thân robot đứng thẳng |
+| Pitch angle penalty | Phạt khi robot nghiêng quá nhiều |
+| Pitch velocity penalty | Giảm dao động của thân robot |
+| Velocity tracking reward | Khuyến khích bám vận tốc mong muốn |
+| Yaw penalty | Giảm quay hướng không mong muốn |
+| Action penalty | Giảm lệnh motor quá lớn |
+| Smoothness penalty | Giảm rung và thay đổi action đột ngột |
+
+Ví dụ logic reward:
+
+```bash
+reward =
+    upright_reward
+    + velocity_tracking_reward
+    - pitch_angle_penalty
+    - pitch_velocity_penalty
+    - yaw_penalty
+    - action_penalty
+```
+
+Reward cần được tuning cẩn thận để robot vừa giữ cân bằng tốt, vừa không tạo ra chuyển động rung hoặc điều khiển quá mạnh.
+
+---
+
+## 15.10. Termination Condition
+
+Một episode có thể kết thúc khi robot rơi vào trạng thái không mong muốn.
+
+Các điều kiện termination thường dùng:
+
+| Điều kiện | Ý nghĩa |
+|---|---|
+| Pitch angle quá lớn | Robot bị ngã |
+| Body height quá thấp | Thân robot chạm sàn |
+| Joint velocity quá lớn | Hệ thống mất ổn định |
+| Episode timeout | Kết thúc sau một thời gian cố định |
+
+Ví dụ:
+
+```bash
+terminate if abs(pitch_angle) > max_pitch_limit
+```
+
+Điều kiện termination giúp agent học cách tránh các trạng thái nguy hiểm.
+
+---
+
+## 15.11. PPO Training
+
+Quá trình train PPO cho xe cân bằng gồm:
+
+```bash
+1. Reset môi trường
+2. Agent nhận observation hiện tại
+3. Policy xuất action cho bánh trái và bánh phải
+4. Isaac Sim mô phỏng chuyển động tiếp theo
+5. Environment tính reward
+6. Kiểm tra termination condition
+7. PPO cập nhật policy
+8. Lặp lại đến khi policy ổn định
+```
+
+Trong quá trình train, nên theo dõi:
+
+- Episode reward.
+- Góc nghiêng pitch.
+- Vận tốc bánh xe.
+- Action output.
+- Tỉ lệ robot bị ngã.
+- Thời gian giữ cân bằng trung bình.
+
+---
+
+## 15.12. Lệnh train cho xe cân bằng
+
+Sau khi task xe cân bằng đã được đăng ký trong Isaac Lab, có thể train bằng lệnh:
+
+### Linux
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+    --task Isaac-Balancerac-v0 \
+    --num_envs 64
+```
+
+### Windows
+
+```bash
+isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py ^
+    --task Isaac-Balancerac-v0 ^
+    --num_envs 64
+```
+
+Có thể train ở chế độ không mở giao diện để tăng tốc:
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+    --task Isaac-Balancerac-v0 \
+    --num_envs 128 \
+    --headless
+```
+
+> Nếu task name khác, cần thay `Isaac-Balancerac-v0` bằng đúng tên task đã đăng ký trong project.
+
+---
+
+## 15.13. Lệnh chạy thử policy
+
+Sau khi train xong, chạy thử policy bằng lệnh:
+
+### Linux
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-Balancerac-v0 \
+    --num_envs 1
+```
+
+### Windows
+
+```bash
+isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/play.py ^
+    --task Isaac-Balancerac-v0 ^
+    --num_envs 1
+```
+
+Nếu policy hoạt động tốt, robot sẽ giữ được trạng thái cân bằng và phản ứng lại khi thân robot bị lệch khỏi vị trí thẳng đứng.
+
+---
+
+## 15.14. Kết quả mong muốn
+
+Kết quả mong muốn sau khi train:
+
+- Robot giữ được cân bằng trong thời gian dài.
+- Góc pitch dao động nhỏ quanh vị trí thẳng đứng.
+- Bánh xe phản ứng nhanh khi robot bị nghiêng.
+- Action điều khiển mượt, không rung mạnh.
+- Robot có thể tiến/lùi hoặc giữ vị trí tùy theo mục tiêu training.
+- Tỉ lệ episode thất bại giảm dần trong quá trình train.
+
+Các tiêu chí đánh giá có thể gồm:
+
+| Tiêu chí | Mục đích |
+|---|---|
+| Thời gian giữ cân bằng | Đánh giá độ ổn định của policy |
+| Sai số pitch trung bình | Đánh giá khả năng giữ thẳng thân robot |
+| Biên độ dao động pitch | Đánh giá mức rung |
+| Action RMS | Đánh giá độ mạnh của lệnh điều khiển |
+| Tỉ lệ robot bị ngã | Đánh giá độ tin cậy |
+| Khả năng bám vận tốc | Đánh giá điều khiển chuyển động |
+
+---
+
+## 15.15. Ghi chú kỹ thuật cho xe cân bằng
+
+Khi tuning xe cân bằng trong Isaac Lab, cần chú ý:
+
+- Vị trí center of mass của thân robot.
+- Moment quán tính của body và bánh xe.
+- Bán kính bánh xe.
+- Khoảng cách giữa hai bánh.
+- Ma sát giữa bánh xe và mặt sàn.
+- Giới hạn torque của actuator.
+- Chiều dương của joint bánh trái và bánh phải.
+- Action scale không nên quá lớn ở giai đoạn đầu.
+- Reward cần ưu tiên giữ thăng bằng trước khi thêm mục tiêu di chuyển.
+- Nếu robot rung mạnh, nên tăng penalty cho action hoặc pitch velocity.
+- Nếu robot không tự đứng được, cần kiểm tra lại initial pose, center of mass và torque limit.
