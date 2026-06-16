@@ -29,7 +29,8 @@
 - [11. Lệnh play policy](#11-lệnh-play-policy)
 - [12. Quy trình phát triển đề xuất](#12-quy-trình-phát-triển-đề-xuất)
 - [13. Lỗi thường gặp](#13-lỗi-thường-gặp)
-- [14. Phần phát triển sau](#14-phần-phát-triển-sau)
+- [14. Rotary Inverted Pendulum](#14-rotary-inverted-pendulum)
+- [15. Phần phát triển sau](#15-phần-phát-triển-sau)
 
 ---
 
@@ -45,14 +46,8 @@ Mục tiêu của project là chuẩn bị các asset có thể tích hợp tr�
 - Kiểm tra hành vi robot trong simulation.
 - Phát triển thuật toán điều khiển trước khi triển khai thực nghiệm.
 
-Ở giai đoạn đầu, README này chỉ tập trung vào phần **cài đặt, thêm asset và kiểm tra import**.
-
-Phần mô tả chi tiết cho từng hệ thống như:
-
-- Xe cân bằng
-- Con lắc ngược quay
-
-sẽ được trình bày ở các phần sau.
+Ở giai đoạn đầu, README này tập trung vào phần **cài đặt, thêm asset và kiểm tra import**.  
+Phần sau sẽ trình bày chi tiết hơn về từng hệ thống, bắt đầu với **Rotary Inverted Pendulum**.
 
 ---
 
@@ -133,8 +128,8 @@ Trong đó:
 | `balancerac_v1` | Custom asset cho hệ thống xe cân bằng |
 | `rotarypendulum_v1` | Custom asset cho hệ thống con lắc ngược quay |
 
-Ở README này, 2 folder trên chỉ được giới thiệu ở mức tổng quát.  
-Phần giải thích chi tiết cấu trúc, joint, actuator, observation và reward sẽ được viết riêng ở phần sau.
+Ở phần đầu README, 2 folder trên chỉ được giới thiệu ở mức tổng quát.  
+Phần chi tiết cho từng hệ thống sẽ được trình bày riêng ở các mục bên dưới.
 
 ---
 
@@ -164,9 +159,9 @@ IsaacLab/source/isaaclab_assets/isaaclab_assets/
 
 ---
 
-## 6.1. Copy asset vào Isaac Lab
+### 6.1. Copy asset vào Isaac Lab
 
-### Linux
+#### Linux
 
 Từ thư mục đang chứa 2 folder asset, chạy:
 
@@ -175,7 +170,7 @@ cp -r balancerac_v1 IsaacLab/source/isaaclab_assets/isaaclab_assets/
 cp -r rotarypendulum_v1 IsaacLab/source/isaaclab_assets/isaaclab_assets/
 ```
 
-### Windows
+#### Windows
 
 Copy thủ công 2 folder:
 
@@ -451,28 +446,373 @@ Một số nguyên nhân thường gặp:
 
 ---
 
-## 14. Phần phát triển sau
+# 14. Rotary Inverted Pendulum
 
-Các phần chi tiết sẽ được bổ sung sau để README không bị quá dài ở phần cài đặt ban đầu.
+<p align="center">
+  <img src="image/conlacnguoc.gif" width="620" alt="Rotary Inverted Pendulum Simulation">
+</p>
 
-Dự kiến bổ sung:
+<p align="center">
+  <b>Rotary Inverted Pendulum trained and tested in Isaac Sim / Isaac Lab</b>
+</p>
+
+---
+
+## 14.1. Giới thiệu hệ thống
+
+**Rotary Inverted Pendulum** là một hệ thống con lắc ngược quay, thường được sử dụng để nghiên cứu các bài toán điều khiển phi tuyến, mất ổn định và thiếu dẫn động.
+
+Hệ thống gồm một tay quay được điều khiển bởi motor và một thanh con lắc gắn tự do ở đầu tay quay.  
+Mục tiêu điều khiển là làm cho con lắc có thể:
+
+- Swing-up từ vị trí rơi xuống.
+- Đưa con lắc về gần vị trí thẳng đứng.
+- Giữ con lắc cân bằng quanh vị trí upright.
+- Giảm dao động trong quá trình ổn định.
+- Tạo hành vi điều khiển mượt trong môi trường mô phỏng.
+
+Trong project này, hệ thống được mô phỏng trong Isaac Sim và được train bằng Reinforcement Learning trong Isaac Lab.
+
+---
+
+## 14.2. Mục tiêu huấn luyện
+
+Mục tiêu chính của quá trình train là tạo ra policy có khả năng điều khiển motor để ổn định con lắc ngược quay.
+
+Quá trình học có thể chia thành 2 giai đoạn chính:
+
+| Giai đoạn | Mô tả |
+|---|---|
+| Swing-up | Agent điều khiển tay quay để tạo đủ năng lượng đưa con lắc lên cao |
+| Stabilization | Agent điều chỉnh motor để giữ con lắc cân bằng tại vị trí thẳng đứng |
+
+Policy sau khi train cần học được cách xử lý các trạng thái phi tuyến của hệ thống thay vì chỉ phụ thuộc vào bộ điều khiển tuyến tính cố định.
+
+---
+
+## 14.3. Lý do sử dụng Reinforcement Learning
+
+Rotary Inverted Pendulum là một hệ thống khó điều khiển vì:
+
+- Động lực học phi tuyến.
+- Trạng thái upright không ổn định tự nhiên.
+- Chỉ có motor điều khiển tay quay, còn con lắc là khớp thụ động.
+- Chuyển động swing-up và balancing có đặc tính khác nhau.
+- Bộ điều khiển cổ điển thường cần mô hình hóa chính xác và tuning thủ công.
+
+Vì vậy, Reinforcement Learning được sử dụng để agent có thể học chính sách điều khiển trực tiếp thông qua tương tác với môi trường mô phỏng.
+
+Thuật toán được định hướng sử dụng:
 
 ```bash
-14.1. Balancer Robot Asset
-14.2. Rotary Pendulum Asset
-14.3. Cấu trúc USD
-14.4. Joint và actuator
-14.5. Observation space
-14.6. Action space
-14.7. Reward function
-14.8. PPO training configuration
-14.9. Training result
-14.10. Policy evaluation
+PPO - Proximal Policy Optimization
+```
+
+PPO phù hợp cho bài toán này vì có tính ổn định tốt trong quá trình train và thường được sử dụng trong các môi trường robot learning.
+
+---
+
+## 14.4. Tổng quan pipeline huấn luyện
+
+Pipeline tổng quát của project:
+
+```bash
+Isaac Sim Physics
+        ↓
+Rotary Pendulum Asset
+        ↓
+Isaac Lab Environment
+        ↓
+Observation / Reward / Action
+        ↓
+PPO Training
+        ↓
+Trained Policy
+        ↓
+Simulation Test
+```
+
+Ý nghĩa từng thành phần:
+
+| Thành phần | Vai trò |
+|---|---|
+| Isaac Sim | Mô phỏng vật lý và hiển thị hệ thống |
+| Asset | Chứa model, articulation, joint và cấu hình robot |
+| Isaac Lab Environment | Định nghĩa môi trường RL |
+| Observation | Trạng thái đầu vào cho agent |
+| Action | Lệnh điều khiển motor |
+| Reward | Hàm đánh giá hành vi của agent |
+| PPO Policy | Chính sách điều khiển học được sau training |
+
+---
+
+## 14.5. Cấu trúc asset rotary pendulum
+
+Folder asset của hệ thống:
+
+```bash
+rotarypendulum_v1
+```
+
+Sau khi được copy vào Isaac Lab, vị trí của asset là:
+
+```bash
+IsaacLab/source/isaaclab_assets/isaaclab_assets/rotarypendulum_v1
+```
+
+Cấu trúc tổng quát có thể gồm:
+
+```bash
+rotarypendulum_v1
+├── __init__.py
+├── rotarypendulum.py
+├── usd
+│   └── rotarypendulum.usd
+└── meshes
+    └── ...
+```
+
+> Tên file thực tế có thể thay đổi tùy theo cách tổ chức project.
+
+---
+
+## 14.6. Thành phần chính của hệ thống
+
+Hệ thống rotary pendulum thường gồm các thành phần chính:
+
+| Thành phần | Chức năng |
+|---|---|
+| Base | Cố định hệ thống trong môi trường mô phỏng |
+| Rotary arm | Tay quay được motor điều khiển |
+| Pendulum link | Thanh con lắc gắn tự do trên tay quay |
+| Motor joint | Khớp chủ động điều khiển tay quay |
+| Pendulum joint | Khớp thụ động của con lắc |
+| Actuator | Nhận action từ policy và tạo lệnh điều khiển |
+
+---
+
+## 14.7. Observation Space
+
+Observation là các trạng thái mà agent nhận được từ môi trường.
+
+Một observation cơ bản có thể gồm:
+
+| Biến trạng thái | Ý nghĩa |
+|---|---|
+| `arm_angle` | Góc tay quay |
+| `arm_velocity` | Vận tốc góc tay quay |
+| `pendulum_angle` | Góc con lắc |
+| `pendulum_velocity` | Vận tốc góc con lắc |
+
+Có thể mở rộng observation bằng cách thêm:
+
+- Sai số góc so với vị trí upright.
+- Dạng sin/cos của góc để tránh discontinuity.
+- Action trước đó.
+- Vận tốc được chuẩn hóa.
+
+Ví dụ observation vector:
+
+```bash
+obs = [
+    sin(pendulum_angle),
+    cos(pendulum_angle),
+    pendulum_velocity,
+    arm_angle,
+    arm_velocity,
+    previous_action
+]
 ```
 
 ---
 
-## 15. Ghi chú kỹ thuật
+## 14.8. Action Space
+
+Action là tín hiệu điều khiển do policy xuất ra.
+
+Đối với rotary pendulum, action thường là lệnh điều khiển cho motor tay quay:
+
+```bash
+action = motor_command
+```
+
+Tùy cấu hình actuator, action có thể được hiểu là:
+
+- Torque command.
+- Velocity command.
+- Position target.
+- Normalized control signal.
+
+Trong bài toán điều khiển con lắc ngược quay, torque command thường phù hợp vì cho phép policy học trực tiếp tác động điều khiển lên hệ thống.
+
+---
+
+## 14.9. Reward Function
+
+Reward function quyết định hành vi mà agent sẽ học.
+
+Một reward cơ bản cho rotary pendulum có thể gồm các mục tiêu:
+
+| Thành phần reward | Mục đích |
+|---|---|
+| Upright reward | Khuyến khích con lắc đứng thẳng |
+| Angle error penalty | Giảm sai số góc |
+| Velocity penalty | Giảm dao động và vận tốc quá lớn |
+| Action penalty | Giảm lệnh điều khiển quá mạnh |
+| Stability reward | Khuyến khích giữ cân bằng lâu hơn |
+
+Ví dụ logic reward:
+
+```bash
+reward =
+    upright_reward
+    - angle_error_penalty
+    - velocity_penalty
+    - action_penalty
+```
+
+Trong quá trình tuning, reward cần được điều chỉnh để agent vừa học được swing-up, vừa giữ được cân bằng ổn định.
+
+---
+
+## 14.10. PPO Training
+
+Thuật toán sử dụng:
+
+```bash
+PPO - Proximal Policy Optimization
+```
+
+PPO được dùng để train policy điều khiển dựa trên tương tác giữa agent và môi trường.
+
+Quá trình train gồm:
+
+```bash
+1. Reset môi trường
+2. Agent quan sát trạng thái hiện tại
+3. Policy xuất action điều khiển motor
+4. Isaac Sim mô phỏng bước vật lý tiếp theo
+5. Environment tính reward
+6. PPO cập nhật policy
+7. Lặp lại cho đến khi policy ổn định
+```
+
+---
+
+## 14.11. Lệnh train cho Rotary Pendulum
+
+Sau khi task rotary pendulum đã được đăng ký trong Isaac Lab, có thể train bằng lệnh:
+
+### Linux
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+    --task Isaac-RotaryPendulum-v0 \
+    --num_envs 64
+```
+
+### Windows
+
+```bash
+isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/train.py ^
+    --task Isaac-RotaryPendulum-v0 ^
+    --num_envs 64
+```
+
+Có thể train ở chế độ không mở giao diện để tăng tốc:
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/train.py \
+    --task Isaac-RotaryPendulum-v0 \
+    --num_envs 128 \
+    --headless
+```
+
+> Nếu task name khác, cần thay `Isaac-RotaryPendulum-v0` bằng đúng tên task đã đăng ký trong project.
+
+---
+
+## 14.12. Lệnh chạy thử policy
+
+Sau khi train xong, chạy thử policy bằng lệnh:
+
+### Linux
+
+```bash
+./isaaclab.sh -p scripts/reinforcement_learning/rsl_rl/play.py \
+    --task Isaac-RotaryPendulum-v0 \
+    --num_envs 1
+```
+
+### Windows
+
+```bash
+isaaclab.bat -p scripts/reinforcement_learning/rsl_rl/play.py ^
+    --task Isaac-RotaryPendulum-v0 ^
+    --num_envs 1
+```
+
+Nếu policy hoạt động tốt, con lắc sẽ thực hiện swing-up và duy trì cân bằng quanh vị trí thẳng đứng.
+
+---
+
+## 14.13. Kết quả mong muốn
+
+Kết quả mong muốn của quá trình train:
+
+- Con lắc có thể swing-up từ vị trí ban đầu.
+- Con lắc tiến về vị trí upright.
+- Dao động giảm dần theo thời gian.
+- Motor action không bị quá lớn hoặc rung mạnh.
+- Policy giữ được trạng thái cân bằng trong thời gian dài.
+
+Các tiêu chí đánh giá có thể gồm:
+
+| Tiêu chí | Mục đích |
+|---|---|
+| Thời gian giữ cân bằng | Đánh giá độ ổn định của policy |
+| Sai số góc trung bình | Đánh giá khả năng bám vị trí upright |
+| Vận tốc góc | Đánh giá mức dao động |
+| Biên độ action | Đánh giá độ mượt của điều khiển |
+| Tỉ lệ episode thành công | Đánh giá độ tin cậy khi reset nhiều lần |
+
+---
+
+## 14.14. Ghi chú kỹ thuật cho Rotary Pendulum
+
+Khi tuning hệ thống rotary pendulum, cần chú ý:
+
+- Giới hạn góc của khớp.
+- Chiều dương của joint.
+- Đơn vị góc là radian hay degree.
+- Tên joint trong USD phải trùng với actuator config.
+- Action scale không nên quá lớn lúc đầu.
+- Reward cần cân bằng giữa swing-up và stabilization.
+- Nên kiểm tra observation bằng log trước khi train lâu.
+- Nếu con lắc rung mạnh, cần tăng penalty cho velocity hoặc action.
+- Nếu agent không swing-up được, cần kiểm tra lại reward năng lượng hoặc upright reward.
+
+---
+
+## 15. Phần phát triển sau
+
+Các phần chi tiết tiếp theo sẽ được bổ sung sau để README hoàn thiện hơn.
+
+Dự kiến bổ sung:
+
+```bash
+15.1. Balancer Robot Asset
+15.2. Cấu trúc USD chi tiết
+15.3. Joint và actuator config
+15.4. PPO config
+15.5. Training result
+15.6. Policy evaluation
+15.7. So sánh điều khiển cổ điển và reinforcement learning
+```
+
+---
+
+## 16. Ghi chú kỹ thuật chung
 
 Repository này phục vụ cho nghiên cứu mô phỏng robot và học tăng cường.
 
@@ -489,7 +829,7 @@ Trước khi triển khai policy từ simulation sang phần cứng thật, cầ
 
 ---
 
-## 16. Tác giả
+## 17. Tác giả
 
 Project được phát triển cho mục đích nghiên cứu:
 
